@@ -1,0 +1,16 @@
+matplotlib
+pillow
+numpy
+scikit-image
+scipy
+timm
+# torch==1.13 \
+# torchvision \
+tqdm>=4.65
+ipdb
+trimesh
+pytorch_lightning==1.8
+pyyaml
+opencv-python-headless
+python-box
+tensorboard

@@ -8,6 +8,72 @@ FineRecon is a deep learning model for 3D reconstruction from posed RGB images.
 
 ## Setup
 
+### Rui
+```
+conda create --name finerecon-py310 python=3.10 pip
+conda activate finerecon-py310
+
+# if you have not set up the cuda version to use in .bashrc, you can do it here
+export LD_LIBRARY_PATH="/usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH"
+export CUDA_HOME="/usr/local/cuda-11.8"
+export PATH="/usr/local/cuda-11.8/bin:$PATH"
+
+```
+
+To preprocess ScanNet data -> `/newfoundland/ScanNet/extracted`:
+```
+python tools/extract_scannet.py # extract from .scan to image, depth and camera files
+python tools/preprocess_scannet.py # dump to finerecon-compatible format
+```
+
+To generate ground truth TSDF for ScanNet -> `/data/finerecon_data/scannet_tsdf`:
+```
+python generate_gt_tsdf.py --dataset-dir /newfoundland/ScanNet/extracted --output-dir /data/finerecon_data/scannet_tsdf # also set these to paths in config.yml
+```
+
+To extract keyframes json **files** for ScanNet using [dvmvs](https://github.com/ardaduz/deep-video-mvs/blob/master/dvmvs/simulate_keyframe_buffer.py) -> `/newfoundland/ScanNet/extracted/{split}_keyframes.json`:
+```
+cd third-party/deep-video-mvs
+python notebooks/extract_keyframes_scannet_finerecon.py
+```
+
+To generate estimated depth maps for ScanNet using [SimpleRecon](https://github.com/nianticlabs/simplerecon):
+
+First, extract another temporary copy of ScanNet -> `/newfoundland/ScanNet/extracted_simplerecon`, using https://github.com/Jerrypiglet/simplerecon/tree/main/data_scripts/scannet_wrangling_scripts
+
+```
+cd simplerecon/data_scripts/scannet_wrangling_scripts
+conda activate simplerecon-py310
+python reader.py --scans_folder /newfoundland/ScanNet/scans_test \
+                 --output_path  /newfoundland/ScanNet/extracted_simplerecon/scans_test \
+                 --scan_list_file splits/scannetv2_test.txt \
+                 --num_workers 8 \
+                 --export_poses \
+                 --export_depth_images \
+                 --export_color_images \
+                 --export_intrinsics;
+```
+
+```
+**python reader.py --scans_folder /newfoundland/ScanNet/scans \
+                 --output_path  /newfoundland/ScanNet/extracted_simplerecon/scans \
+                 --scan_list_file splits/scannetv2_train.txt \
+                 --num_workers 24 \
+                 --export_poses \
+                 --export_depth_images \
+                 --export_color_images \
+                 --export_intrinsics;
+**
+python reader.py --scans_folder /newfoundland/ScanNet/scans \
+                 --output_path  /newfoundland/ScanNet/extracted_simplerecon/scans \
+                 --scan_list_file splits/scannetv2_val.txt \
+                 --num_workers 16 \
+                 --export_poses \
+                 --export_depth_images \
+                 --export_color_images \
+                 --export_intrinsics;
+```
+
 ### Dependencies
 
 ```
@@ -69,6 +135,7 @@ The dataset structure expected by FineRecon is
 The files `test.txt`, `train.txt`, and `val.txt` should each contain a newline-separated list of scan directory names (e.g. `first_scan`) describing the test, train, and validation splits respectively. Each `pose.npy` contains the camera poses (world-to-camera transformation matrices) as an array of size `(N, 4, 4)` in [npy format](https://numpy.org/devdocs/reference/generated/numpy.lib.format.html), where any invalid poses are marked with the value `Inf`. The files `intrinsic_color.txt` and `intrinsic_depth.txt` should contain the `(4, 4)` color and depth intrinsic matrices, respectively. In `config.yml`, the value of `dataset_dir` should be set to `/path/to/dataset`.
 
 To generate the ground truth TSDF run `generate_gt_tsdf.py --dataset-dir /path/to/dataset --output-dir /path/to/gt_tsdf`, and in `config.yml` set the value of `tsdf_dir` to `/path/to/gt_tsdf`.
+
 To run training or inference with depth guidance, make sure `depth_guidance.enabled` is set to `True` in the config and set the value of `depth_guidance.pred_depth_dir` to `/path/to/pred_depth`, which should have the following structure:
 
 ```
@@ -94,7 +161,7 @@ It can be helpful to limit inference to only using a set of pre-defined keyframe
 }
 ```
 
-where `i0`, `i1`, etc. are the integer indices of the keyframes.
+where `i0`, `i1`, etc. are the integer indices of the keyframes. The view selection strategy for keyframes is from [DeepVideoMVS](https://github.com/ardaduz/deep-video-mvs).
 
 ## Training
 

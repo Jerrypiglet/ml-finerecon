@@ -1,0 +1,6 @@
+[submodule "third-party/deep-video-mvs"]
+	path = third-party/deep-video-mvs
+	url = https://github.com/Jerrypiglet/deep-video-mvs.git
+[submodule "third-party/simplerecon"]
+	path = third-party/simplerecon
+	url = https://github.com/Jerrypiglet/simplerecon.git
