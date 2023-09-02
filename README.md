@@ -6,10 +6,14 @@ FineRecon is a deep learning model for 3D reconstruction from posed RGB images.
 
 ![FineRecon results](media/finerecon.jpg)
 
-## Setup
 
-### Rui
-```
+## Rui
+
+### environment
+
+r4090:
+
+``` bash
 conda create --name finerecon-py310 python=3.10 pip
 conda activate finerecon-py310
 
@@ -17,32 +21,62 @@ conda activate finerecon-py310
 export LD_LIBRARY_PATH="/usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH"
 export CUDA_HOME="/usr/local/cuda-11.8"
 export PATH="/usr/local/cuda-11.8/bin:$PATH"
+```
+
+mm2:
+
+``` bash
+# if you have not set up the cuda version to use in .bashrc, you can do it here
+export LD_LIBRARY_PATH="/usr/local/cuda-11.3/lib64:$LD_LIBRARY_PATH"
+export CUDA_HOME="/usr/local/cuda-11.3"
+export PATH="/usr/local/cuda-11.3/bin:$PATH"
+
+conda create --name finerecon-py39 python=3.9 pip
+conda activate finerecon-py39
+pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113
+conda install clang llvm-openmp
+pip install -r requirements_py39.txt
 
 ```
 
+### extract ScanNet and GT TSDF for FineRecon
 To preprocess ScanNet data -> `/newfoundland/ScanNet/extracted`:
-```
+``` bash
 python tools/extract_scannet.py # extract from .scan to image, depth and camera files
 python tools/preprocess_scannet.py # dump to finerecon-compatible format
 ```
 
 To generate ground truth TSDF for ScanNet -> `/data/finerecon_data/scannet_tsdf`:
-```
+``` bash
 python generate_gt_tsdf.py --dataset-dir /newfoundland/ScanNet/extracted --output-dir /data/finerecon_data/scannet_tsdf # also set these to paths in config.yml
 ```
 
+### extract keyframes
+
+`obsolete; reading from SimpleRecon files instead (see next section; the results should be the same though)`
+    
 To extract keyframes json **files** for ScanNet using [dvmvs](https://github.com/ardaduz/deep-video-mvs/blob/master/dvmvs/simulate_keyframe_buffer.py) -> `/newfoundland/ScanNet/extracted/{split}_keyframes.json`:
-```
+
+``` bash
 cd third-party/deep-video-mvs
 python notebooks/extract_keyframes_scannet_finerecon.py
+```
+
+### extract depth maps for keyframes
+
+To process keyframe selection by [SimpleRecon](https://github.com/nianticlabs/simplerecon) -> `/newfoundland/ScanNet/extracted_simplerecon/{split}_keyframes.json`:
+
+``` bash
+cd third-party/simplerecon
+data_scripts/convert_keyframe_for_finerecon.py
 ```
 
 To generate estimated depth maps for ScanNet using [SimpleRecon](https://github.com/nianticlabs/simplerecon):
 
 First, extract another temporary copy of ScanNet -> `/newfoundland/ScanNet/extracted_simplerecon`, using https://github.com/Jerrypiglet/simplerecon/tree/main/data_scripts/scannet_wrangling_scripts
 
-```
-cd simplerecon/data_scripts/scannet_wrangling_scripts
+``` bash
+cd third-party/simplerecon/data_scripts/scannet_wrangling_scripts
 conda activate simplerecon-py310
 python reader.py --scans_folder /newfoundland/ScanNet/scans_test \
                  --output_path  /newfoundland/ScanNet/extracted_simplerecon/scans_test \
@@ -54,8 +88,8 @@ python reader.py --scans_folder /newfoundland/ScanNet/scans_test \
                  --export_intrinsics;
 ```
 
-```
-**python reader.py --scans_folder /newfoundland/ScanNet/scans \
+``` bash
+python reader.py --scans_folder /newfoundland/ScanNet/scans \
                  --output_path  /newfoundland/ScanNet/extracted_simplerecon/scans \
                  --scan_list_file splits/scannetv2_train.txt \
                  --num_workers 24 \
@@ -63,7 +97,7 @@ python reader.py --scans_folder /newfoundland/ScanNet/scans_test \
                  --export_depth_images \
                  --export_color_images \
                  --export_intrinsics;
-**
+
 python reader.py --scans_folder /newfoundland/ScanNet/scans \
                  --output_path  /newfoundland/ScanNet/extracted_simplerecon/scans \
                  --scan_list_file splits/scannetv2_val.txt \
@@ -73,6 +107,26 @@ python reader.py --scans_folder /newfoundland/ScanNet/scans \
                  --export_color_images \
                  --export_intrinsics;
 ```
+
+Then run inference:
+
+``` bash
+CUDA_VISIBLE_DEVICES=0 python test.py --name HERO_MODEL_scannet \
+            --output_base_path outputs \
+            --config_file configs/models/hero_model.yaml \
+            --load_weights_from_checkpoint weights/hero_model.ckpt \
+            --data_config configs/data/scannet_default_test.yaml \
+            --num_workers 8 \
+            --fast_cost_volume \
+            --cache_depths \
+            --dump_depth_visualization \
+            --run_fusion \
+            --depth_fuser open3d \
+            --fuse_color \
+            --batch_size 2;
+```
+
+## Setup
 
 ### Dependencies
 
