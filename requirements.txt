@@ -9,7 +9,7 @@ timm
 tqdm>=4.65
 ipdb
 trimesh
-pytorch_lightning==1.8
+pytorch_lightning
 pyyaml
 opencv-python-headless
 python-box

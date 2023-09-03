@@ -9,7 +9,7 @@ FineRecon is a deep learning model for 3D reconstruction from posed RGB images.
 
 ## Rui
 
-### environment
+### Environment
 
 r4090:
 
@@ -39,11 +39,12 @@ pip install -r requirements_py39.txt
 
 ```
 
-### extract ScanNet and GT TSDF for FineRecon
+### Extract ScanNet and GT TSDF for FineRecon
 To preprocess ScanNet data -> `/newfoundland/ScanNet/extracted`:
 ``` bash
 python tools/extract_scannet.py # extract from .scan to image, depth and camera files
 python tools/preprocess_scannet.py # dump to finerecon-compatible format
+python tools/tmp_lns_extracted.py
 ```
 
 To generate ground truth TSDF for ScanNet -> `/data/finerecon_data/scannet_tsdf`:
@@ -51,7 +52,7 @@ To generate ground truth TSDF for ScanNet -> `/data/finerecon_data/scannet_tsdf`
 python generate_gt_tsdf.py --dataset-dir /newfoundland/ScanNet/extracted --output-dir /data/finerecon_data/scannet_tsdf # also set these to paths in config.yml
 ```
 
-### extract keyframes
+### Extract keyframes
 
 `obsolete; reading from SimpleRecon files instead (see next section; the results should be the same though)`
     
@@ -62,7 +63,7 @@ cd third-party/deep-video-mvs
 python notebooks/extract_keyframes_scannet_finerecon.py
 ```
 
-### extract depth maps for keyframes
+### Extract depth maps for keyframes
 
 To process keyframe selection by [SimpleRecon](https://github.com/nianticlabs/simplerecon) -> `/newfoundland/ScanNet/extracted_simplerecon/{split}_keyframes.json`:
 
@@ -124,6 +125,21 @@ CUDA_VISIBLE_DEVICES=0 python test.py --name HERO_MODEL_scannet \
             --depth_fuser open3d \
             --fuse_color \
             --batch_size 2;
+```
+
+### Run FineRecon
+Preprocess data by:
+
+``` bash
+python tmp_lns_extracted.py # create symbolic links to extracted data
+python tmp_lns_tsdf.py # create symbolic links to tsdf data
+python tmp_lns_depths.py # create png files from simplerecon prediction pickles
+```
+
+Then run inference:
+
+``` bash
+python main.py --task predict --ckpt weights/RTS-DG-PB.ckpt
 ```
 
 ## Setup

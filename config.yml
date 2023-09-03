@@ -1,11 +1,12 @@
-run_name: "version_0"
+run_name: "scannet_test_est_depth"
 
 improved_tsdf_sampling: True
 point_backprojection: True
 
 depth_guidance:
   enabled: True
-  pred_depth_dir: /tmp/mvs_depth
+  # pred_depth_dir: /home/rzhu/Documents/data/finerecon_data/scannet_extracted
+  pred_depth_dir: /home/rzhu/Documents/data/finerecon_data/scannet_depths
   depth_scale_augmentation: True
   bp_weighting: "none"
   tsdf_fusion_channel: True
@@ -29,10 +30,10 @@ voxel_size: 0.04
 crop_size_nvox_train: [96, 96, 56]
 crop_size_nvox_val: [96, 96, 96]
 
-dataset_dir: "/newfoundland/ScanNet/extracted"
-tsdf_dir: "/data/finerecon_data/scannet_tsdf"
+dataset_dir: "/home/rzhu/Documents/data/finerecon_data/scannet_extracted"
+tsdf_dir: "/home/rzhu/Documents/data/finerecon_data/scannet_tsdf"
 
 # if no keyframes file is provided then inference will use every frame
-test_keyframes_file: "/tmp/mvs_keyframes.json"
+test_keyframes_file: "/home/rzhu/Documents/data/finerecon_data/test_keyframes.json"
 
 do_prediction_timing: False

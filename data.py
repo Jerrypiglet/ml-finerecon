@@ -9,8 +9,10 @@ import scipy.spatial
 import torch
 import torchvision
 import trimesh
+from pathlib import Path
 
 import utils
+import pickle
 
 from tsdf_fusion import TSDFVolumeTorch
 
@@ -97,12 +99,13 @@ def load_scan(scan, keyframes_file=None):
     if keyframes_file is not None:
         with open(keyframes_file, "r") as f:
             kf_idxs = np.array(json.load(f)[scan["scan_name"]])
+        kf_idxs = [int(i.replace('i', '')) for i in kf_idxs]
         frames = {i: frames[i] for i in kf_idxs}
 
     kf_idx = np.ones(len(frames))
 
     frame_idxs = sorted(frames.keys())
-    poses = torch.from_numpy(np.stack([frames[i]["pose"] for i in frame_idxs]))
+    poses = torch.from_numpy(np.stack([frames[i]["pose"] for i in frame_idxs])).float()
     rgb_imgfiles = np.array([frames[i]["rgb_imgfile"] for i in frame_idxs])
     gt_depth_imgfiles = np.array([frames[i]["gt_depth_imgfile"] for i in frame_idxs])
 
@@ -235,14 +238,37 @@ def augment_images_inplace(rgb_imgs):
         rgb_imgs[i] = torchvision.transforms.functional.adjust_hue(rgb_imgs[i], hue)
 
 
-def load_depth_img(f):
-    return cv2.imread(f, cv2.IMREAD_ANYDEPTH).astype(np.float32) / 1000
+def load_depth_img(f, target_size=None):
+    if f.endswith(".png"):
+        depth = cv2.imread(f, cv2.IMREAD_ANYDEPTH).astype(np.float32) / 1000.
+        # print('->', f, depth.dtype, depth.shape, np.amax(depth), np.amin(depth[depth>0]), np.mean(depth[depth>0]), np.median(depth[depth>0]))
 
+    elif f.endswith(".pickle"):
+        depth = load_depth_simplerecon_pickle(f)
+        # print('=>', f, depth.dtype, depth.shape, np.amax(depth), np.amin(depth[depth>0]), np.mean(depth[depth>0]), np.median(depth[depth>0]))
+    else:
+        raise Exception(f"unknown depth file type: {f}")
+    
+    if not target_size is None:
+        if not (target_size[0] == depth.shape[0] and target_size[1] == depth.shape[1]):
+            imheight, imwidth = target_size
+            # img = img.resize((imwidth, imheight))
+            depth = cv2.resize(depth, (imwidth, imheight), interpolation=cv2.INTER_AREA)
+    return depth
 
-def load_depth_imgs(depth_imgfiles, imsize):
-    result = np.zeros((len(depth_imgfiles), *imsize), dtype=np.float32)
+def load_depth_simplerecon_pickle(depth_est_path):
+    with open(depth_est_path, 'rb') as f:
+        depth_est_dict = pickle.load(f)
+    depth_est = depth_est_dict['depth_pred_s0_b1hw'].cpu().numpy().squeeze()
+    return depth_est
+
+def load_depth_imgs(depth_imgfiles, imsize, target_size=None):
+    if target_size is None:
+        result = np.zeros((len(depth_imgfiles), *imsize), dtype=np.float32)
+    else:
+        result = np.zeros((len(depth_imgfiles), *target_size), dtype=np.float32)
     for i in range(len(depth_imgfiles)):
-        result[i] = load_depth_img(depth_imgfiles[i])
+        result[i] = load_depth_img(depth_imgfiles[i], target_size=target_size)
     return torch.from_numpy(result)
 
 
@@ -307,6 +333,12 @@ class InferenceDataset(torch.utils.data.Dataset):
                 keyframe = kf_idx[i]
 
                 if load_depth:
+                    # if 'scannet_depths' in scan['pred_depth_dir']:
+                    #     pred_depth_imgfile = os.path.join(
+                    #         scan["pred_depth_dir"],
+                    #         '%06d'%(int(os.path.basename(rgb_imgfiles[i])[:-4])) + ".pickle",
+                    #     )
+                    # else:
                     pred_depth_imgfile = os.path.join(
                         scan["pred_depth_dir"],
                         "depth",
@@ -320,7 +352,7 @@ class InferenceDataset(torch.utils.data.Dataset):
                 else:
                     pred_depth_imgfile = None
                     K_pred_depth = None
-
+                    
                 self.frames.append(
                     [
                         rgb_imgfiles[i],
@@ -375,7 +407,9 @@ class InferenceDataset(torch.utils.data.Dataset):
             "final_frame": final_frame,
         }
         if self.load_depth:
-            pred_depth_img = load_depth_img(pred_depth_imgfile)[None]
+            assert Path(pred_depth_imgfile).exists(), pred_depth_imgfile
+            pred_depth_img = load_depth_img(pred_depth_imgfile, TARGET_RGB_IMG_SIZE)[None]
+            # print(pred_depth_img.shape, '=======', K_pred_depth, np.amax(pred_depth_img), np.amin(pred_depth_img), np.mean(pred_depth_img), np.median(pred_depth_img))
 
             result["pred_depth_imgs"] = pred_depth_img
             result["K_pred_depth"] = K_pred_depth
@@ -581,8 +615,8 @@ class Dataset(torch.utils.data.Dataset):
                     )
                 )
 
-            pred_depth_img_shape = load_depth_img(pred_depth_imgfiles[0]).shape
-            pred_depth_imgs = load_depth_imgs(pred_depth_imgfiles, pred_depth_img_shape)
+            pred_depth_img_shape = load_depth_img(pred_depth_imgfiles[0], TARGET_RGB_IMG_SIZE).shape
+            pred_depth_imgs = load_depth_imgs(pred_depth_imgfiles, pred_depth_img_shape, TARGET_RGB_IMG_SIZE)
 
             K_pred_depth = torch.from_numpy(
                 np.loadtxt(os.path.join(scan["pred_depth_dir"], "intrinsic_depth.txt"))[

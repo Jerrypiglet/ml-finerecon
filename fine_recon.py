@@ -1179,7 +1179,7 @@ class FineRecon(pl.LightningModule):
 
         if first_scan_only:
             test_scans = test_scans[:1]
-
+            
         predict_dataset = data.InferenceDataset(
             test_scans,
             load_depth=self.dg.enabled,
